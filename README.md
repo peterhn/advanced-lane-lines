@@ -13,11 +13,11 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./test_images/test2.jpg "Undistorted"
+[image1]: ./output_images/test_undist0.jpg "Undistorted"
 [image2]: ./output_images/test_undist1.jpg "Road Transformed"
 [image3]: ./output_images/color_binary.png "Binary Example"
 [image4]: ./output_images/perspective_transformed.png "Warp Example"
-[image5]: ./output_images/warped_color_binary.png "Fit Visual"
+[image5]: ./output_images/color_binary_warped.png "Fit Visual"
 [image6]: ./output_images/detected_lane.jpg "Output"
 [video1]: ./processed_project_video.mp4 "Video"
 
@@ -28,12 +28,11 @@ The code is contained for this step in contained in `camera_optimizer.py`.
 
 I started the lane detection by calibrating the camera and removing distortion. This is done by preparing the "object points", which are the (x, y, z) coordinates of the chessboard corners in the world. The chessboard images were fixed on the (x, y) plane when z = 0, meaning the object points would be the same for each calibration image. So in `camera_optimizer.py`, `objp` is a replicated array of coordinates from `objpoints`, which is an array of all of the detected chessboard corners. While `imgpoints` are the pixel position of each of the corners in teh image plane with every chessboard detection.
 
-`objpoints` and `imgpoints` were then used to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function.
+`objpoints` and `imgpoints` were then used to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
 
+![alt text][image1]
 
 ### Pipeline (single images)
-##### Non Distortion corrected image
-![alt text][image1]
 
 ##### Distortion corrected image
 
@@ -49,14 +48,8 @@ I used a combination of color and gradient thresholds to generate a binary image
 The code for my perspective transform includes a function called `warp()`. The `warp()` function takes as inputs an image (`img`) and warps the image with a hardcoded `src` and `dst` points. I chose the hardcode the source and destination points in the following manner:
 
 ```
-    corners = np.float32([[190,720],[589,457],[698,457],[1145,720]])
-    new_top_left=np.array([corners[0,0],0])
-    new_top_right=np.array([corners[3,0],0])
-    offset=[150,0]
-    
-    src = np.float32([corners[0],corners[1],corners[2],corners[3]])
-    dst = np.float32([corners[0]+offset,new_top_left+offset,new_top_right-offset ,corners[3]-offset])    
- 
+src = np.float32([corners[0],corners[1],corners[2],corners[3]])
+dst = np.float32([corners[0]+offset,new_top_left+offset,new_top_right-offset ,corners[3]-offset])
 ```
 This resulted in the following source and destination points:
 
@@ -92,13 +85,12 @@ Once the values of the left and right lane pixels are found from `find_lanes()`,
 
 #### Final Video
 
-Here's a [link to my video result](./project_video.mp4)
+Here's a [link to my video result](./output_images/processed_project_video.mp4)
 
 ---
 
 ### Discussion
 
-####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+The overall design of the project worked well with the test video, I did, however intially had some problems warping the image correctly to obtain the optimal image that can detect lanes succesfully. It took some constant iteration and changes to the warping parameters, namely the sobel thresholds and perspective source points, but eventually got it to work. The pipeline, however, is not perfect. It does not compute well in certain lighting conditions (such as shadows) and sharper lane curves (as attempted in the challenge project). There are many ways in which we can make the pipeline more robust, such as running two pipelines and detecting when shadows are in the image, or different pipelines for specifically colored lane lines.
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
 
