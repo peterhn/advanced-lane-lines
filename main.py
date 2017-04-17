@@ -184,7 +184,7 @@ def find_lanes(binary_warped):
     result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
 
-    return ploty, left_fitx, right_fitx
+    return ploty, left_fitx, right_fitx, left_fit, right_fit
 
 def to_real_world_space(image, left_fitx, right_fitx, ploty):
     # Create an image to draw the lines on
@@ -213,6 +213,8 @@ def calculate_curvature_pixel_radius(ploty, left_fit, right_fit):
 
     print(left_curverad, right_curverad)
     return (left_curverad, right_curverad)
+YM_PER_PIX = 30/720
+XM_PER_PIX = 3.7/700
 
 def calculate_curvature_meter_radius(ploty, leftx, rightx):
     # Define conversions in x and y from pixels space to meters
@@ -221,15 +223,23 @@ def calculate_curvature_meter_radius(ploty, leftx, rightx):
     xm_per_pix = 3.7/700 # meters per pixel in x dimension
 
     # Fit new polynomials to x,y in world space
-    left_fit_cr = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
-    right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
+    left_fit_cr = np.polyfit(ploty*YM_PER_PIX, leftx*XM_PER_PIX, 2)
+    right_fit_cr = np.polyfit(ploty*YM_PER_PIX, rightx*XM_PER_PIX, 2)
     # Calculate the new radii of curvature
-    left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
-    right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+    left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*YM_PER_PIX + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
+    right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*YM_PER_PIX + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
     # Now our radius of curvature is in meters
-    print(left_curverad, 'm', right_curverad, 'm')
 
     return (left_curverad, right_curverad)
+
+def calculate_distance_from_center(center, leftx, rightx):
+    to_meters = np.array([[YM_PER_PIX, 0],
+                      [0, XM_PER_PIX]])
+    
+    center = np.dot(center, to_meters)
+    center_x, center_y = center
+
+    return ((rightx + leftx)/2 - center_x)
 
 def region_of_interest(img):
     """
@@ -258,20 +268,34 @@ def region_of_interest(img):
     masked_image = cv2.bitwise_and(img, mask)
     return masked_image
 
-
     
 def warp_binarize_pipeline(undist):
     binary = create_color_binary(undist)
     result,_  = warp(binary)
     result = region_of_interest(result)
     return result 
+def calculate_distance_from_center2(width, height, left_fit, right_fit):
 
+    if right_fit is not None and left_fit is not None:
+        car_position = width/2
+        l_fit_x_int = left_fit[0]*height**2 + left_fit[1]*height + left_fit[2]
+        r_fit_x_int = right_fit[0]*height**2 + right_fit[1]*height + right_fit[2]
+        lane_center_position = (r_fit_x_int + l_fit_x_int) /2
+        center_dist = (car_position - lane_center_position) * XM_PER_PIX
+ 
+    return center_dist
 def process_image(img):
+    height, width, _ = img.shape
     undist = undistort_image(img, MTX, DIST)
     warp_binary_roi = warp_binarize_pipeline(undist)
 
-    ploty, left_fitx, right_fitx = find_lanes(warp_binary_roi)
+    ploty, left_fitx, right_fitx, left_fit, right_fit = find_lanes(warp_binary_roi)
     real_world = to_real_world_space(img, left_fitx, right_fitx, ploty)
+    radius_meters = calculate_curvature_meter_radius(ploty, left_fitx, right_fitx)
+    distance_from_center = calculate_distance_from_center2(width, height, left_fit, right_fit)
+    cv2.putText(real_world, "Left radius of curvature: {0:.2f}m".format(float(radius_meters[0])), (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1,(255,255,255),2,cv2.LINE_AA)
+    cv2.putText(real_world, "Right radius of curvature: {0:.2f}m".format(float(radius_meters[1])), (10, 90), cv2.FONT_HERSHEY_COMPLEX, 1,(255,255,255),2,cv2.LINE_AA)
+    cv2.putText(real_world, "Distance from center: {0:.2f}m".format(float(distance_from_center)), (10, 130), cv2.FONT_HERSHEY_COMPLEX, 1,(255,255,255),2,cv2.LINE_AA)
 
     return real_world
 
@@ -281,7 +305,7 @@ from moviepy.editor import VideoFileClip
 
 if __name__ == '__main__':
     output = OUTPUT_IMAGES_PATH + 'processed_project_video.mp4'
-    clip = VideoFileClip('challenge_video.mp4')
+    clip = VideoFileClip('project_video.mp4')
     out_clip = clip.fl_image(process_image) 
     out_clip.write_videofile(output, audio=False)
      
